@@ -72,22 +72,22 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <LibraryPath>$(VULKAN_SDK)\bin32;$(LibraryPath)</LibraryPath>
-    <IncludePath>$(VULKAN_SDK)\include\vulkan;$(IncludePath)</IncludePath>
+    <IncludePath>$(VULKAN_SDK)\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <LibraryPath>$(VULKAN_SDK)\bin;$(LibraryPath)</LibraryPath>
-    <IncludePath>$(VULKAN_SDK)\include\vulkan;$(IncludePath)</IncludePath>
+    <IncludePath>$(VULKAN_SDK)\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <LibraryPath>$(VULKAN_SDK)\bin32;$(LibraryPath)</LibraryPath>
-    <IncludePath>$(VULKAN_SDK)\include\vulkan;$(IncludePath)</IncludePath>
+    <IncludePath>$(VULKAN_SDK)\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <LibraryPath>$(VULKAN_SDK)\bin;$(LibraryPath)</LibraryPath>
-    <IncludePath>$(VULKAN_SDK)\include\vulkan;$(IncludePath)</IncludePath>
+    <IncludePath>$(VULKAN_SDK)\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -156,12 +156,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Debug.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="MeshObject.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="RenderObject.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Debug.h" />
     <ClInclude Include="MeshObject.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="RenderObject.h" />

@@ -5,6 +5,6 @@
 int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstancee, LPSTR mCommandline, int commandShow)
 {
 	Renderer r;
-	r.Init();
+	r.Init(hInstance);
 
 }
