@@ -234,6 +234,7 @@ bool Renderer::EnumerateDevices()
 				Debug::Log(std::string("Using device: ") + properties.deviceName + "Which has " + ToString(queueCount) + " queues");
 				defaultQueueFamilyIndex = j;
 				defaultPhysicalDevice = gpus[i];
+				break;
 			}
 		}
 
@@ -268,8 +269,12 @@ bool Renderer::CreateDevice()
 
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	deviceCreateInfo.pQueueCreateInfos = &queue;
+	//deviceCreateInfo.enabledExtensionCount = globalExtensionCount;		//TODO: get this programatically
+	//deviceCreateInfo.ppEnabledExtensionNames = globalExtensionNames;
+
 	deviceCreateInfo.enabledExtensionCount = 1;		//TODO: get this programatically
-	//deviceCreateInfo.ppEnabledExtensionNames
+	char* deviceExtensions[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
 
 	//devices = new VkDevice[deviceCount];
 	//defaultDevice = devices[0];
@@ -287,7 +292,7 @@ bool Renderer::CreateAppWindow()
 	WNDCLASSEX wc = {};
 	wc.cbSize = sizeof(WNDCLASSEX);
 	wc.hInstance = winAppInstance;
-	//wc.lpfnWndProc = 
+	wc.lpfnWndProc = WndProc;
 	wc.lpszClassName = L"Classname";
 
 	if (!RegisterClassEx(&wc))
@@ -417,4 +422,10 @@ bool Renderer::Init(HINSTANCE hInstance)
 	CreateCommandBuffers();
 
 	return true;
+}
+
+LRESULT CALLBACK Renderer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	return DefWindowProc(hwnd, msg, wParam, lParam);
+//	return 0;
 }
