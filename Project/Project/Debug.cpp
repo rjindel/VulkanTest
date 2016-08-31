@@ -15,11 +15,15 @@ void Debug::Log(std::string message, DebugLevel level, int lineNumber, const cha
 
 	if (filename != nullptr)
 	{
-		debugMessage = '[' + filename + ']';
+		debugMessage = '[';
+		debugMessage += filename;
+		debugMessage += "] ";
  	}
 	if (lineNumber > 0)
 	{
-		debugMessage += '(' + lineNumber + ')';
+		debugMessage += '('; 
+		debugMessage += lineNumber;
+		debugMessage += ") ";
 	}
 	switch (level)
 	{
