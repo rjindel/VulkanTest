@@ -211,6 +211,7 @@ bool Renderer::EnumerateDevices()
 {
 	assert(instance && "VkInstance not initialised");	//TODO: improve error handling
 
+	uint32_t deviceCount = 0;
 	auto err = vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
 	if (err != VK_SUCCESS)
@@ -384,6 +385,10 @@ bool Renderer::CreateSwapchain()
 		return false;
 	}
 
+	height = surfaceCapabilities.currentExtent.height;
+	width = surfaceCapabilities.currentExtent.width;
+
+	VkPresentModeKHR presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 	/*
 	uint32_t presentModeCount;
 	err = vkGetPhysicalDeviceSurfacePresentModesKHR(defaultPhysicalDevice, surface, &presentModeCount, nullptr);
@@ -393,8 +398,8 @@ bool Renderer::CreateSwapchain()
 		return false;
 	}
 
-	VkPresentModeKHR * presentModes = new VkPresentModeKHR[presentModeCount];
-	err = vkGetPhysicalDeviceSurfacePresentModesKHR(defaultPhysicalDevice, surface, &presentModeCount, presentModes);
+	vector<VkPresentModeKHR> presentModes(presentModeCount);
+	err = vkGetPhysicalDeviceSurfacePresentModesKHR(defaultPhysicalDevice, surface, &presentModeCount, presentModes.data());
 	if (err != VK_SUCCESS)
 	{
 		Debug::Log("Get Surface present mode", DebugLevel::Error);
@@ -402,18 +407,27 @@ bool Renderer::CreateSwapchain()
 	}
 	*/
 
+	uint32_t swapchainImageCount = 2;
+	if (surfaceCapabilities.minImageCount > swapchainImageCount)
+	{
+		swapchainImageCount = surfaceCapabilities.minImageCount;
+	}
+	if (surfaceCapabilities.maxImageCount > 0 && swapchainImageCount > surfaceCapabilities.maxImageCount)
+	{
+		swapchainImageCount = surfaceCapabilities.maxImageCount;
+	}
+
+		
 	//Create Swapchain
 	VkSwapchainCreateInfoKHR swapchainCreateInfo {};
 	swapchainCreateInfo.sType			= VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	swapchainCreateInfo.pNext			= nullptr;
 	swapchainCreateInfo.flags			= 0;
 	swapchainCreateInfo.surface			= surface;
-	swapchainCreateInfo.minImageCount	= 2;
+	swapchainCreateInfo.minImageCount	= swapchainImageCount;
 	swapchainCreateInfo.imageFormat		= currentFormat;
 	swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 	swapchainCreateInfo.imageExtent		= surfaceCapabilities.currentExtent;
-	//swapchainCreateInfo.imageExtent.height	= height;
-	//swapchainCreateInfo.imageExtent.width	= width;
 	swapchainCreateInfo.imageArrayLayers = 1;
 	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	
@@ -423,7 +437,7 @@ bool Renderer::CreateSwapchain()
 
 	swapchainCreateInfo.preTransform	= surfaceCapabilities.currentTransform; //	VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
 	swapchainCreateInfo.compositeAlpha	= VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	swapchainCreateInfo.presentMode		= VK_PRESENT_MODE_IMMEDIATE_KHR;// swapchainPresentMode;
+	swapchainCreateInfo.presentMode		= presentMode;
 	swapchainCreateInfo.clipped			= VK_TRUE;
 
 	err = vkCreateSwapchainKHR(defaultDevice, &swapchainCreateInfo, nullptr, &swapchain);
@@ -436,8 +450,97 @@ bool Renderer::CreateSwapchain()
 	return true;
 }
 
+bool Renderer::CreateImageView()
+{
+	uint32_t swapchainImageCount = 0;
+	auto err = vkGetSwapchainImagesKHR(defaultDevice, swapchain, &swapchainImageCount, nullptr);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Get Swap chain image count");
+		return false;
+	}
+
+	swapchainImages.resize(swapchainImageCount);
+	err = vkGetSwapchainImagesKHR(defaultDevice, swapchain, &swapchainImageCount, swapchainImages.data());
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Get Swap chain images");
+		return false;
+	}
+
+	imageViews.reserve(swapchainImageCount);
+	for (auto swapchainImage : swapchainImages)
+	{
+		VkImageViewCreateInfo imageViewCreateInfo{};
+		imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewCreateInfo.pNext = nullptr;
+		imageViewCreateInfo.image = swapchainImage;
+		imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewCreateInfo.format = currentFormat;
+		imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;  //VK_COMPONENT_SWIZZLE_R;
+		imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+		imageViewCreateInfo.subresourceRange.levelCount = 1;
+		imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewCreateInfo.subresourceRange.layerCount = 1;
+		imageViewCreateInfo.flags = 0;
+
+		VkImageView imageView;
+		vkCreateImageView(defaultDevice, &imageViewCreateInfo, nullptr, &imageView);
+		imageViews.push_back(imageView);
+	}
+
+	return true;
+}
+
 bool Renderer::RecreateSwapChainAndBuffers()
 {
+	VkSurfaceCapabilitiesKHR surfaceCapabilities;
+	auto err = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(defaultPhysicalDevice, surface, &surfaceCapabilities);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Get Surface capabilities", DebugLevel::Error);
+		return false;
+	}
+
+	height = surfaceCapabilities.currentExtent.height;
+	width = surfaceCapabilities.currentExtent.width;
+
+	VkPresentModeKHR presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+
+	//Create Swapchain
+	VkSwapchainCreateInfoKHR swapchainCreateInfo{};
+	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	swapchainCreateInfo.pNext = nullptr;
+	swapchainCreateInfo.flags = 0;
+	swapchainCreateInfo.surface = surface;
+	swapchainCreateInfo.minImageCount = swapchainImages.size();
+	swapchainCreateInfo.imageFormat = currentFormat;
+	swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+	swapchainCreateInfo.imageExtent = surfaceCapabilities.currentExtent;
+	swapchainCreateInfo.imageArrayLayers = 1;
+	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+	swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	swapchainCreateInfo.queueFamilyIndexCount = 0;// defaultQueueFamilyIndex;
+	swapchainCreateInfo.pQueueFamilyIndices = nullptr;
+
+	swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform; //	VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
+	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	swapchainCreateInfo.presentMode = presentMode;
+	swapchainCreateInfo.clipped = VK_TRUE;
+	swapchainCreateInfo.oldSwapchain = swapchain;
+
+	err = vkCreateSwapchainKHR(defaultDevice, &swapchainCreateInfo, nullptr, &swapchain);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Recreate Swap Chain", DebugLevel::Error);
+		return false;
+	}
+
 	return false;
 }
 
@@ -492,13 +595,14 @@ bool Renderer::RenderClearScreen()
 {
 	uint32_t timeout = 30; // ms
 	VkSemaphore semaphore;
+	VkSemaphoreCreateInfo semaphoreCreatInfo{};
+	semaphoreCreatInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	semaphoreCreatInfo.pNext = nullptr;
+	semaphoreCreatInfo.flags = 0;
+	auto err = vkCreateSemaphore(defaultDevice, &semaphoreCreatInfo, nullptr, &semaphore);
 	uint32_t imageIndex;
 	
-	auto err = vkAcquireNextImageKHR(defaultDevice, swapchain, timeout, semaphore, nullptr, &imageIndex);
-
-	uint32_t imageCount = 1;
-	VkImage *swapChainImages = new VkImage[imageCount];
-	vkGetSwapchainImagesKHR(defaultDevice, swapchain, &imageCount, swapChainImages);
+	err = vkAcquireNextImageKHR(defaultDevice, swapchain, timeout, semaphore, nullptr, &imageIndex);
 
 	VkCommandBufferBeginInfo cmdBufferBeginInfo{};
 	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -524,7 +628,7 @@ bool Renderer::RenderClearScreen()
 	barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	barrier.srcQueueFamilyIndex = defaultQueueFamilyIndex;
 	barrier.dstQueueFamilyIndex = defaultQueueFamilyIndex;
-	barrier.image = swapChainImages[imageIndex];
+	barrier.image = swapchainImages[imageIndex];
 	barrier.subresourceRange = imageSubresourceRange;
 	
 	VkImageMemoryBarrier barrier2 = barrier;
@@ -537,7 +641,7 @@ bool Renderer::RenderClearScreen()
 	err = vkBeginCommandBuffer(commandBuffer, &cmdBufferBeginInfo);
 	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 	
-	vkCmdClearColorImage(commandBuffer, swapChainImages[imageIndex] , VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColour, 1, &imageSubresourceRange);
+	vkCmdClearColorImage(commandBuffer, swapchainImages[imageIndex] , VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColour, 1, &imageSubresourceRange);
 
 	//End
 	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier2);
@@ -604,10 +708,43 @@ bool Renderer::CreateRenderPass()
 	VkRenderPassCreateInfo renderPassCreateInfo{};
 	renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassCreateInfo.pNext = nullptr;
-
-	VkRenderPass renderPass;
+	renderPassCreateInfo.flags = 0;
+	renderPassCreateInfo.attachmentCount = 1;
+	renderPassCreateInfo.pAttachments = &attachmentDescription;
+	renderPassCreateInfo.subpassCount = 1;
+	renderPassCreateInfo.pSubpasses = &subpassDescription;
+	renderPassCreateInfo.dependencyCount = 0;
+	renderPassCreateInfo.pDependencies = nullptr;
 
 	auto err = vkCreateRenderPass(defaultDevice, &renderPassCreateInfo, nullptr, &renderPass);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Create Render pass");
+		return false;
+	}
+
+	return true;
+}
+
+bool Renderer::CreateFrameBuffer()
+{
+	VkFramebufferCreateInfo framebufferCreateInfo{};
+	framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	framebufferCreateInfo.pNext = nullptr;
+	framebufferCreateInfo.flags = 0;
+	framebufferCreateInfo.renderPass = renderPass;
+	framebufferCreateInfo.attachmentCount = imageViews.size();
+	framebufferCreateInfo.pAttachments = imageViews.data();
+	framebufferCreateInfo.width = width;
+	framebufferCreateInfo.height = height;
+	framebufferCreateInfo.layers = 1;
+
+	auto err = vkCreateFramebuffer(defaultDevice, &framebufferCreateInfo, nullptr, &frameBuffer);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Create Frame buffer");
+		return false;
+	}
 
 	return true;
 }
@@ -622,11 +759,19 @@ bool Renderer::CreateTri()
 
 	VkBufferCreateInfo vbInfo = {};
 	vbInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vbInfo.pNext = nullptr;
+	vbInfo.flags = VK_BUFFER_CREATE_SPARSE_BINDING_BIT;
+	vbInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vbInfo.size = sizeof(vertices);
 	vbInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	vbInfo.queueFamilyIndexCount = 0;
+	vbInfo.pQueueFamilyIndices = &defaultQueueFamilyIndex;
 	
 	VkMemoryAllocateInfo vbAllocInfo = {};
 	vbAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	vbAllocInfo.pNext = nullptr;
+	vbAllocInfo.allocationSize = 0;
+	vbAllocInfo.memoryTypeIndex = 0;
 
 	VkBuffer vertexBuffer;
 
@@ -674,6 +819,9 @@ bool Renderer::Init(HINSTANCE hInstance)
 
 	CreateSwapchain();
 	CreateCommandBuffers();
+	CreateImageView();
+
+	RenderClearScreen();
 
 	return true;
 }

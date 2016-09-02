@@ -31,18 +31,16 @@ protected:
 	{
 		return GetInstanceExtensions(nullptr, globalExtensionNames);
 	}
+
 	VkInstance			instance{ VK_NULL_HANDLE };	//TODO Replace all VK handles with VK_NULL_HANDLES
 	bool				CreateInstance();
 
 	//devices
-	uint32_t			deviceCount{};
-
-	VkPhysicalDevice	defaultPhysicalDevice { VK_NULL_HANDLE };
 	vector<VkPhysicalDevice>	gpus;
+	VkPhysicalDevice	defaultPhysicalDevice { VK_NULL_HANDLE };
 	uint32_t			defaultQueueFamilyIndex;	
 	bool				EnumerateDevices();		//SIDE EFFECT: creates surface, and selects default physical device
 	
-	//VkDevice*			devices{ VK_NULL_HANDLE };
 	VkDevice			defaultDevice { VK_NULL_HANDLE };
 	bool				CreateDevice();
 	VkQueue				primaryQueue{ VK_NULL_HANDLE };
@@ -59,6 +57,9 @@ protected:
 	VkSwapchainKHR		swapchain{ VK_NULL_HANDLE };
 	bool CreateSwapchain();
 
+	vector<VkImage>		swapchainImages;
+	vector<VkImageView> imageViews;
+	bool				CreateImageView();
 
 	VkCommandPool		commandPool { VK_NULL_HANDLE };
 	const uint32_t		bufferCount { 1 };
@@ -69,6 +70,7 @@ protected:
 
 	bool RenderClearScreen();
 
+	VkRenderPass renderPass;
 	bool CreateRenderPass();
 	bool CreateFrameBuffer();
 	bool CreatePipeline();
