@@ -385,8 +385,8 @@ bool Renderer::CreateSwapchain()
 		return false;
 	}
 
-	height = surfaceCapabilities.currentExtent.height;
 	width = surfaceCapabilities.currentExtent.width;
+	height = surfaceCapabilities.currentExtent.height;
 
 	VkPresentModeKHR presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 	/*
@@ -506,8 +506,8 @@ bool Renderer::RecreateSwapChainAndBuffers()
 		return false;
 	}
 
-	height = surfaceCapabilities.currentExtent.height;
 	width = surfaceCapabilities.currentExtent.width;
+	height = surfaceCapabilities.currentExtent.height;
 
 	VkPresentModeKHR presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
@@ -749,6 +749,168 @@ bool Renderer::CreateFrameBuffer()
 	return true;
 }
 
+bool Renderer::CreateShader()
+{
+	vector<char> code;
+	VkShaderModuleCreateInfo shaderModuleCreateInfo{};
+	shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	shaderModuleCreateInfo.pNext = nullptr;
+	shaderModuleCreateInfo.flags = 0;
+	shaderModuleCreateInfo.codeSize = code.size();
+	shaderModuleCreateInfo.pCode = code.data();
+
+	VkShaderModule shaderModule;
+	auto err = vkCreateShaderModule(defaultDevice, &shaderModuleCreateInfo, nullptr, &shaderModule);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Create shader module");
+		return false;
+	}
+
+	VkPipelineShaderStageCreateInfo pipelineVertexShaderStageCreateInfo{};
+	pipelineVertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	pipelineVertexShaderStageCreateInfo.pNext = nullptr;
+	pipelineVertexShaderStageCreateInfo.flags = 0;
+	pipelineVertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	pipelineVertexShaderStageCreateInfo.module = shaderModule;
+	pipelineVertexShaderStageCreateInfo.pName = "main";
+	pipelineVertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+
+	VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo {};
+	pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	pipelineVertexInputStateCreateInfo.pNext = nullptr;
+	pipelineVertexInputStateCreateInfo.flags = 0;
+	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+	pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+
+	VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo{};
+	pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	pipelineInputAssemblyStateCreateInfo.pNext = nullptr;
+	pipelineInputAssemblyStateCreateInfo.flags = 0;
+	pipelineInputAssemblyStateCreateInfo.primitiveRestartEnable = VK_FALSE;
+	pipelineInputAssemblyStateCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+	VkViewport viewport;
+	viewport.x = viewport.y = 0;
+	viewport.width = width;
+	viewport.height = height;
+	viewport.minDepth = 0;
+	viewport.maxDepth = 1.0f;
+
+	VkRect2D scissors{};
+	scissors.offset.x = scissors.offset.y = 0;
+	scissors.extent.width = width;
+	scissors.extent.height = height;
+
+	VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo {};
+	pipelineViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	pipelineViewportStateCreateInfo.pNext = nullptr;
+	pipelineViewportStateCreateInfo.flags = 0;
+	pipelineViewportStateCreateInfo.viewportCount = 1;
+	pipelineViewportStateCreateInfo.pViewports = &viewport;
+	pipelineViewportStateCreateInfo.scissorCount = 1;
+	pipelineViewportStateCreateInfo.pScissors = &scissors;
+
+	VkPipelineRasterizationStateCreateInfo pipelineRasterizationCreateInfo{};
+	pipelineRasterizationCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	pipelineRasterizationCreateInfo.pNext = nullptr;
+	pipelineRasterizationCreateInfo.flags = 0;
+	pipelineRasterizationCreateInfo.depthClampEnable = VK_FALSE;
+	pipelineRasterizationCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+	pipelineRasterizationCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+	pipelineRasterizationCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	pipelineRasterizationCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	pipelineRasterizationCreateInfo.depthBiasEnable = VK_FALSE;
+	pipelineRasterizationCreateInfo.depthBiasConstantFactor = 0.0f;
+	pipelineRasterizationCreateInfo.depthBiasClamp = 0.0f;
+	pipelineRasterizationCreateInfo.depthBiasSlopeFactor = 0.0f;
+	pipelineRasterizationCreateInfo.lineWidth = 1.0f;
+
+	VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo{};
+	pipelineMultisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	pipelineMultisampleStateCreateInfo.pNext = nullptr;
+	pipelineMultisampleStateCreateInfo.flags = 0;
+	pipelineMultisampleStateCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	pipelineMultisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
+	pipelineMultisampleStateCreateInfo.minSampleShading = 1.0f;
+	pipelineMultisampleStateCreateInfo.pSampleMask = nullptr;
+	pipelineMultisampleStateCreateInfo.alphaToCoverageEnable = VK_FALSE;
+	pipelineMultisampleStateCreateInfo.alphaToOneEnable = VK_FALSE;
+
+	VkPipelineColorBlendAttachmentState pipelineColourBlendAttachmentState{};
+	pipelineColourBlendAttachmentState.blendEnable = VK_FALSE;
+	pipelineColourBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	pipelineColourBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	pipelineColourBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	pipelineColourBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	pipelineColourBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	pipelineColourBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	pipelineColourBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	VkPipelineColorBlendStateCreateInfo pipelineColourBlendStateCreateInfo{};
+	pipelineColourBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	pipelineColourBlendStateCreateInfo.pNext = nullptr;
+	pipelineColourBlendStateCreateInfo.flags = 0;
+	pipelineColourBlendStateCreateInfo.attachmentCount = 1;
+	pipelineColourBlendStateCreateInfo.pAttachments = &pipelineColourBlendAttachmentState;
+	pipelineColourBlendStateCreateInfo.logicOpEnable = VK_FALSE;
+	pipelineColourBlendStateCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+	pipelineColourBlendStateCreateInfo.blendConstants[0] = 0.0f;
+	pipelineColourBlendStateCreateInfo.blendConstants[1] = 0.0f;
+	pipelineColourBlendStateCreateInfo.blendConstants[2] = 0.0f;
+	pipelineColourBlendStateCreateInfo.blendConstants[3] = 0.0f;
+	
+	VkPipelineLayoutCreateInfo layoutCreateInfo{};
+	layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	layoutCreateInfo.pNext = nullptr;
+	layoutCreateInfo.flags = 0;
+	layoutCreateInfo.setLayoutCount = 0;
+	layoutCreateInfo.pSetLayouts = nullptr;
+	layoutCreateInfo.pushConstantRangeCount = 0;
+	layoutCreateInfo.pPushConstantRanges = nullptr;
+
+	VkPipelineLayout pipelineLayout;
+	auto err = vkCreatePipelineLayout(defaultDevice, &layoutCreateInfo, nullptr, &pipelineLayout);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Create Pipeline Layout", DebugLevel::Error);
+		return false;
+	}
+
+	
+	VkGraphicsPipelineCreateInfo graphicsCreatePipelineInfo{};
+	graphicsCreatePipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	graphicsCreatePipelineInfo.pNext = nullptr;
+	graphicsCreatePipelineInfo.flags = 0;
+	graphicsCreatePipelineInfo.stageCount = 1;
+	graphicsCreatePipelineInfo.pStages = &pipelineVertexShaderStageCreateInfo;
+	graphicsCreatePipelineInfo.pVertexInputState = &pipelineVertexInputStateCreateInfo;
+	graphicsCreatePipelineInfo.pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo;
+	graphicsCreatePipelineInfo.pTessellationState = nullptr;
+	graphicsCreatePipelineInfo.pViewportState = &pipelineViewportStateCreateInfo;
+	graphicsCreatePipelineInfo.pRasterizationState = &pipelineRasterizationCreateInfo;
+	graphicsCreatePipelineInfo.pMultisampleState = &pipelineMultisampleStateCreateInfo;
+	graphicsCreatePipelineInfo.pDepthStencilState = nullptr;
+	graphicsCreatePipelineInfo.pColorBlendState = &pipelineColourBlendStateCreateInfo;
+	graphicsCreatePipelineInfo.pDynamicState = nullptr;
+	graphicsCreatePipelineInfo.layout = pipelineLayout;
+	graphicsCreatePipelineInfo.renderPass = renderPass;
+	graphicsCreatePipelineInfo.subpass = 0;
+	graphicsCreatePipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+	graphicsCreatePipelineInfo.basePipelineIndex -1;
+
+	err = vkCreateGraphicsPipelines(defaultDevice, VK_NULL_HANDLE, 1, &graphicsCreatePipelineInfo, nullptr, &pipeline);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Create graphics pipeline", DebugLevel::Error);
+		return false;
+	}
+
+	return true;
+}
+
 bool Renderer::CreateTri()
 {
 	float vertices[] = {
@@ -790,6 +952,110 @@ bool Renderer::CreateTri()
 	return true;
 }
 
+bool Renderer::RenderWithRenderPass()
+{
+	uint32_t timeout = 30; // ms
+	VkSemaphore semaphore;
+	VkSemaphoreCreateInfo semaphoreCreatInfo{};
+	semaphoreCreatInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	semaphoreCreatInfo.pNext = nullptr;
+	semaphoreCreatInfo.flags = 0;
+	auto err = vkCreateSemaphore(defaultDevice, &semaphoreCreatInfo, nullptr, &semaphore);
+	uint32_t imageIndex;
+	
+	err = vkAcquireNextImageKHR(defaultDevice, swapchain, timeout, semaphore, nullptr, &imageIndex);
+
+	VkCommandBufferBeginInfo cmdBufferBeginInfo{};
+	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	cmdBufferBeginInfo.pNext = nullptr;
+	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+	cmdBufferBeginInfo.pInheritanceInfo = nullptr;
+
+	VkClearValue clearColour = { 1.0f, 0.8f, 0.4f, 0.0f };
+
+	VkImageSubresourceRange imageSubresourceRange{};
+	imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imageSubresourceRange.baseMipLevel = 0;
+	imageSubresourceRange.levelCount = 1;
+	imageSubresourceRange.baseArrayLayer = 0;
+	imageSubresourceRange.layerCount = 1;
+
+	/*
+	VkImageMemoryBarrier barrier{};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.pNext = nullptr;
+	barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier.srcQueueFamilyIndex = defaultQueueFamilyIndex;
+	barrier.dstQueueFamilyIndex = defaultQueueFamilyIndex;
+	barrier.image = swapchainImages[imageIndex];
+	barrier.subresourceRange = imageSubresourceRange;
+	
+	VkImageMemoryBarrier barrier2 = barrier;
+	barrier2.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+	barrier2.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	barrier2.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier2.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	
+	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	*/
+
+	VkRect2D renderArea{};
+	renderArea.offset.x = renderArea.offset.y = 0;
+	renderArea.extent.width = width;
+	renderArea.extent.height = height;
+
+	VkRenderPassBeginInfo renderPassBeginInfo{
+		VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+		nullptr,
+		renderPass,
+		frameBuffer,
+		renderArea,
+		1, &clearColour
+	};
+
+	//Begin 
+	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+	vkCmdEndRenderPass(commandBuffer);
+
+	//End
+	//vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier2);
+
+	err = vkEndCommandBuffer(commandBuffer);
+
+	VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = nullptr;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &semaphore;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &semaphore; //TODO: we need different semaphores here
+	
+	err = vkQueueSubmit(primaryQueue, 1, &submitInfo, nullptr);
+	
+	VkPresentInfoKHR presentInfo{};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.pNext = nullptr;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &semaphore;
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = &swapchain;
+	presentInfo.pImageIndices = &imageIndex;
+	presentInfo.pResults = nullptr;
+	
+	err = vkQueuePresentKHR(primaryQueue, &presentInfo);
+
+	return true;
+}
 LRESULT CALLBACK Renderer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)

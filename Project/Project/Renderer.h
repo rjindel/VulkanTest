@@ -72,7 +72,10 @@ protected:
 
 	VkRenderPass renderPass;
 	bool CreateRenderPass();
+
+	VkFramebuffer frameBuffer;
 	bool CreateFrameBuffer();
+
 	bool CreatePipeline();
 	bool CreateShader();
 
