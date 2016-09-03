@@ -68,18 +68,20 @@ protected:
 
 	bool RecreateSwapChainAndBuffers();
 
-	bool RenderClearScreen();
-
 	VkRenderPass renderPass;
 	bool CreateRenderPass();
 
 	VkFramebuffer frameBuffer;
 	bool CreateFrameBuffer();
 
+	VkPipeline pipeline;
 	bool CreatePipeline();
 	bool CreateShader();
 
 	bool CreateTri();
+
+	bool RenderClearScreen();
+	bool RenderWithRenderPass();
 
 public:
 	Renderer();

@@ -751,7 +751,7 @@ bool Renderer::CreateFrameBuffer()
 
 bool Renderer::CreateShader()
 {
-	vector<char> code;
+	vector<uint32_t> code;
 	VkShaderModuleCreateInfo shaderModuleCreateInfo{};
 	shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	shaderModuleCreateInfo.pNext = nullptr;
@@ -872,7 +872,7 @@ bool Renderer::CreateShader()
 	layoutCreateInfo.pPushConstantRanges = nullptr;
 
 	VkPipelineLayout pipelineLayout;
-	auto err = vkCreatePipelineLayout(defaultDevice, &layoutCreateInfo, nullptr, &pipelineLayout);
+	err = vkCreatePipelineLayout(defaultDevice, &layoutCreateInfo, nullptr, &pipelineLayout);
 	if (err != VK_SUCCESS)
 	{
 		Debug::Log("Create Pipeline Layout", DebugLevel::Error);
@@ -899,7 +899,7 @@ bool Renderer::CreateShader()
 	graphicsCreatePipelineInfo.renderPass = renderPass;
 	graphicsCreatePipelineInfo.subpass = 0;
 	graphicsCreatePipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-	graphicsCreatePipelineInfo.basePipelineIndex -1;
+	graphicsCreatePipelineInfo.basePipelineIndex = -1;
 
 	err = vkCreateGraphicsPipelines(defaultDevice, VK_NULL_HANDLE, 1, &graphicsCreatePipelineInfo, nullptr, &pipeline);
 	if (err != VK_SUCCESS)
