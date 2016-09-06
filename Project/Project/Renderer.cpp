@@ -826,13 +826,14 @@ bool Renderer::CreatePipeline()
 //	const char* vertexShaderFilename = "FlatColour.vert.spv.txt";
 //	const char* fragmentShaderFilename = "FlatColour.frag.spv.txt";
 	
-	const char* vertexShaderFilename = "vert.spv";
 	const char* fragmentShaderFilename = "frag.spv";
-	
-	VkShaderModule vertexShaderModule, fragmentShaderModule;
-	if(!CreateShader(vertexShaderFilename, vertexShaderModule))
-		return false;
+	VkShaderModule fragmentShaderModule = VK_NULL_HANDLE;
 	if(!CreateShader(fragmentShaderFilename, fragmentShaderModule))
+		return false;
+
+	const char* vertexShaderFilename = "vert.spv";
+	VkShaderModule vertexShaderModule = VK_NULL_HANDLE;
+	if (!CreateShader(vertexShaderFilename, vertexShaderModule))
 		return false;
 
 	VkPipelineShaderStageCreateInfo pipelineVertexShaderStageCreateInfo{};
