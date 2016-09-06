@@ -3,6 +3,9 @@
 
 #include <memory>
 #include <assert.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 Renderer::Renderer()
 {
@@ -293,8 +296,10 @@ bool Renderer::CreateDevice()
 	queue.pQueuePriorities = queue_priorities;
 
 	VkDeviceCreateInfo deviceCreateInfo = {};
-
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	deviceCreateInfo.pNext = nullptr;
+	deviceCreateInfo.flags = 0;
+	deviceCreateInfo.queueCreateInfoCount = 1;
 	deviceCreateInfo.pQueueCreateInfos = &queue;
 	//deviceCreateInfo.enabledExtensionCount = globalExtensionCount;		//TODO: get this programatically
 	//deviceCreateInfo.ppEnabledExtensionNames = globalExtensionNames;
@@ -347,7 +352,7 @@ bool Renderer::CreateCommandBuffers()
 	VkCommandPoolCreateInfo cmd_pool_info{};
 	cmd_pool_info.sType		= VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	cmd_pool_info.queueFamilyIndex = defaultQueueFamilyIndex;
-	cmd_pool_info.flags		= 0;
+	cmd_pool_info.flags		= VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 	cmd_pool_info.pNext		= nullptr;
 
 	auto err = vkCreateCommandPool(defaultDevice, &cmd_pool_info, nullptr, &commandPool);
@@ -705,6 +710,24 @@ bool Renderer::CreateRenderPass()
 	subpassDescription.preserveAttachmentCount = 0;
 	subpassDescription.pPreserveAttachments = nullptr;
 
+	VkSubpassDependency dependencies[2];
+	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[0].dstSubpass = 0;
+	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+	dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+	dependencies[1].srcSubpass = 0;
+	dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+	dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+
 	VkRenderPassCreateInfo renderPassCreateInfo{};
 	renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassCreateInfo.pNext = nullptr;
@@ -713,8 +736,8 @@ bool Renderer::CreateRenderPass()
 	renderPassCreateInfo.pAttachments = &attachmentDescription;
 	renderPassCreateInfo.subpassCount = 1;
 	renderPassCreateInfo.pSubpasses = &subpassDescription;
-	renderPassCreateInfo.dependencyCount = 0;
-	renderPassCreateInfo.pDependencies = nullptr;
+	renderPassCreateInfo.dependencyCount = 2;
+	renderPassCreateInfo.pDependencies = dependencies;
 
 	auto err = vkCreateRenderPass(defaultDevice, &renderPassCreateInfo, nullptr, &renderPass);
 	if (err != VK_SUCCESS)
@@ -749,9 +772,27 @@ bool Renderer::CreateFrameBuffer()
 	return true;
 }
 
-bool Renderer::CreateShader()
+bool Renderer::CreateShader(const char* filename, VkShaderModule& shaderModule)
 {
-	vector<uint32_t> code;
+	FILE* shaderFile = fopen(filename, "r");
+	if (shaderFile == nullptr)
+	{
+		Debug::Log(string("Open file: ") + filename, DebugLevel::Error);
+		return false;
+	}
+
+	struct stat fileStat;
+	if (stat(filename, &fileStat) != 0)
+	{
+		Debug::Log("Get file stat", DebugLevel::Error);
+		return false;
+	}
+
+	vector<uint32_t> code(fileStat.st_size / sizeof(uint32_t));
+	fread((void*) code.data(), fileStat.st_size, 1, shaderFile);
+
+	fclose(shaderFile);
+
 	VkShaderModuleCreateInfo shaderModuleCreateInfo{};
 	shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	shaderModuleCreateInfo.pNext = nullptr;
@@ -759,7 +800,6 @@ bool Renderer::CreateShader()
 	shaderModuleCreateInfo.codeSize = code.size();
 	shaderModuleCreateInfo.pCode = code.data();
 
-	VkShaderModule shaderModule;
 	auto err = vkCreateShaderModule(defaultDevice, &shaderModuleCreateInfo, nullptr, &shaderModule);
 	if (err != VK_SUCCESS)
 	{
@@ -767,6 +807,9 @@ bool Renderer::CreateShader()
 		return false;
 	}
 
+	return true;
+
+	/*
 	VkPipelineShaderStageCreateInfo pipelineVertexShaderStageCreateInfo{};
 	pipelineVertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	pipelineVertexShaderStageCreateInfo.pNext = nullptr;
@@ -775,6 +818,48 @@ bool Renderer::CreateShader()
 	pipelineVertexShaderStageCreateInfo.module = shaderModule;
 	pipelineVertexShaderStageCreateInfo.pName = "main";
 	pipelineVertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+	*/
+}
+
+bool Renderer::CreatePipeline()
+{
+//	const char* vertexShaderFilename = "FlatColour.vert.spv.txt";
+//	const char* fragmentShaderFilename = "FlatColour.frag.spv.txt";
+	
+	const char* vertexShaderFilename = "vert.spv";
+	const char* fragmentShaderFilename = "frag.spv";
+	
+	VkShaderModule vertexShaderModule, fragmentShaderModule;
+	if(!CreateShader(vertexShaderFilename, vertexShaderModule))
+		return false;
+	if(!CreateShader(fragmentShaderFilename, fragmentShaderModule))
+		return false;
+
+	VkPipelineShaderStageCreateInfo pipelineVertexShaderStageCreateInfo{};
+	pipelineVertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	pipelineVertexShaderStageCreateInfo.pNext = nullptr;
+	pipelineVertexShaderStageCreateInfo.flags = 0;
+	pipelineVertexShaderStageCreateInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	pipelineVertexShaderStageCreateInfo.module = vertexShaderModule;
+	pipelineVertexShaderStageCreateInfo.pName = "main";
+	pipelineVertexShaderStageCreateInfo.pSpecializationInfo = nullptr;
+	VkPipelineShaderStageCreateInfo pipelineFragmentShaderStageCreateInfo = pipelineVertexShaderStageCreateInfo;
+	pipelineFragmentShaderStageCreateInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	pipelineFragmentShaderStageCreateInfo.module = fragmentShaderModule;
+
+	vector<VkPipelineShaderStageCreateInfo> pipelineStages = { pipelineVertexShaderStageCreateInfo, pipelineFragmentShaderStageCreateInfo };
+
+	VkVertexInputBindingDescription vertexBindingDescription{};
+	vertexBindingDescription.binding = 0;
+	vertexBindingDescription.stride = sizeof(float) * 4;
+	vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	VkVertexInputAttributeDescription vertexAttributeDescription{};
+	vertexAttributeDescription.location = 0;
+	vertexAttributeDescription.binding = 0;
+	vertexAttributeDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	vertexAttributeDescription.offset = 0;
+	vertexAttributeDescription.binding = 0;
 
 	VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo {};
 	pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -785,6 +870,11 @@ bool Renderer::CreateShader()
 	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
 	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
 
+/*	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
+	pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexBindingDescription;
+	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = &vertexAttributeDescription;
+*/
 	VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo{};
 	pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	pipelineInputAssemblyStateCreateInfo.pNext = nullptr;
@@ -808,10 +898,26 @@ bool Renderer::CreateShader()
 	pipelineViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	pipelineViewportStateCreateInfo.pNext = nullptr;
 	pipelineViewportStateCreateInfo.flags = 0;
+	/*
+	pipelineViewportStateCreateInfo.viewportCount = 0;
+	pipelineViewportStateCreateInfo.pViewports = nullptr;
+	pipelineViewportStateCreateInfo.scissorCount = 0;
+	pipelineViewportStateCreateInfo.pScissors = nullptr;
+	*/
+
 	pipelineViewportStateCreateInfo.viewportCount = 1;
 	pipelineViewportStateCreateInfo.pViewports = &viewport;
 	pipelineViewportStateCreateInfo.scissorCount = 1;
 	pipelineViewportStateCreateInfo.pScissors = &scissors;
+
+	VkDynamicState dynamicStates [] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+	VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo{};
+	pipelineDynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	pipelineDynamicStateCreateInfo.pNext = nullptr;
+	pipelineDynamicStateCreateInfo.flags = 0;
+	pipelineDynamicStateCreateInfo.dynamicStateCount = 2;
+	pipelineDynamicStateCreateInfo.pDynamicStates = dynamicStates;
 
 	VkPipelineRasterizationStateCreateInfo pipelineRasterizationCreateInfo{};
 	pipelineRasterizationCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -872,7 +978,7 @@ bool Renderer::CreateShader()
 	layoutCreateInfo.pPushConstantRanges = nullptr;
 
 	VkPipelineLayout pipelineLayout;
-	err = vkCreatePipelineLayout(defaultDevice, &layoutCreateInfo, nullptr, &pipelineLayout);
+	auto err = vkCreatePipelineLayout(defaultDevice, &layoutCreateInfo, nullptr, &pipelineLayout);
 	if (err != VK_SUCCESS)
 	{
 		Debug::Log("Create Pipeline Layout", DebugLevel::Error);
@@ -884,8 +990,8 @@ bool Renderer::CreateShader()
 	graphicsCreatePipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	graphicsCreatePipelineInfo.pNext = nullptr;
 	graphicsCreatePipelineInfo.flags = 0;
-	graphicsCreatePipelineInfo.stageCount = 1;
-	graphicsCreatePipelineInfo.pStages = &pipelineVertexShaderStageCreateInfo;
+	graphicsCreatePipelineInfo.stageCount = pipelineStages.size();
+	graphicsCreatePipelineInfo.pStages = pipelineStages.data();
 	graphicsCreatePipelineInfo.pVertexInputState = &pipelineVertexInputStateCreateInfo;
 	graphicsCreatePipelineInfo.pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo;
 	graphicsCreatePipelineInfo.pTessellationState = nullptr;
@@ -894,7 +1000,7 @@ bool Renderer::CreateShader()
 	graphicsCreatePipelineInfo.pMultisampleState = &pipelineMultisampleStateCreateInfo;
 	graphicsCreatePipelineInfo.pDepthStencilState = nullptr;
 	graphicsCreatePipelineInfo.pColorBlendState = &pipelineColourBlendStateCreateInfo;
-	graphicsCreatePipelineInfo.pDynamicState = nullptr;
+	graphicsCreatePipelineInfo.pDynamicState = nullptr; // &pipelineDynamicStateCreateInfo;
 	graphicsCreatePipelineInfo.layout = pipelineLayout;
 	graphicsCreatePipelineInfo.renderPass = renderPass;
 	graphicsCreatePipelineInfo.subpass = 0;
@@ -911,43 +1017,102 @@ bool Renderer::CreateShader()
 	return true;
 }
 
+bool Renderer::AllocateMemory(VkBuffer& buffer, VkDeviceMemory& devMem)
+{
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(defaultDevice, buffer, &memRequirements);
+
+	VkPhysicalDeviceMemoryProperties memoryProperties;
+	vkGetPhysicalDeviceMemoryProperties(defaultPhysicalDevice, &memoryProperties);
+
+	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
+	{
+		if ((memRequirements.memoryTypeBits & (1 << i)) &&
+			(memoryProperties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+		{
+			VkMemoryAllocateInfo memoryAllocInfo{};
+			memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+			memoryAllocInfo.pNext = nullptr;
+			memoryAllocInfo.allocationSize = memRequirements.size;
+			memoryAllocInfo.memoryTypeIndex = i;
+
+			auto err = vkAllocateMemory(defaultDevice, &memoryAllocInfo, nullptr, &devMem);
+			if (err == VK_SUCCESS)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 bool Renderer::CreateTri()
 {
 	float vertices[] = {
-		0, -1, 0,
-		-1, 1, 0,
-		1, 1,  0
+		0, -1, 0, 1,
+		-1, 1, 0, 1,
+		1, 1,  0, 1
 	};
 
 	VkBufferCreateInfo vbInfo = {};
 	vbInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vbInfo.pNext = nullptr;
-	vbInfo.flags = VK_BUFFER_CREATE_SPARSE_BINDING_BIT;
-	vbInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	vbInfo.flags = 0;
 	vbInfo.size = sizeof(vertices);
 	vbInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	vbInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vbInfo.queueFamilyIndexCount = 0;
-	vbInfo.pQueueFamilyIndices = &defaultQueueFamilyIndex;
-	
+	vbInfo.pQueueFamilyIndices = nullptr; // &defaultQueueFamilyIndex;
+
 	VkMemoryAllocateInfo vbAllocInfo = {};
 	vbAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	vbAllocInfo.pNext = nullptr;
 	vbAllocInfo.allocationSize = 0;
 	vbAllocInfo.memoryTypeIndex = 0;
 
-	VkBuffer vertexBuffer;
-
 	auto err = vkCreateBuffer(defaultDevice, &vbInfo, nullptr, &vertexBuffer);
 	if (err != VK_SUCCESS)
 	{
-		//TODO output an error 
+		Debug::Log("Create Vertex buffer");
 		return false;
 	}
 
-	VkMemoryRequirements memRequirements;
 	
-	vkGetBufferMemoryRequirements(defaultDevice, vertexBuffer, &memRequirements);
+	VkDeviceMemory devMem;
+	if (AllocateMemory(vertexBuffer, devMem))
+	{
+		Debug::Log("Allocate memory for vertex buffer");
+		return false;
+	}
 
+	err = vkBindBufferMemory(defaultDevice, vertexBuffer, devMem, 0);
+	if(err != VK_SUCCESS)
+	{
+		Debug::Log("Allocate memory for vertex buffer");
+		return false;
+	}
+
+	void* memPtr = nullptr;
+
+	err = vkMapMemory(defaultDevice, devMem, 0, VK_WHOLE_SIZE, 0, &memPtr);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Map vertex memory");
+		return false;
+	}
+
+	memcpy(memPtr, vertices, sizeof(vertices));
+	
+	VkMappedMemoryRange memoryRange{};
+	memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+	memoryRange.pNext = nullptr;
+	memoryRange.memory = devMem;
+	memoryRange.offset = 0;
+	memoryRange.size = VK_WHOLE_SIZE;
+	vkFlushMappedMemoryRanges(defaultDevice, 1, &memoryRange);
+
+	vkUnmapMemory(defaultDevice, devMem);
 
 	return true;
 }
@@ -1056,6 +1221,136 @@ bool Renderer::RenderWithRenderPass()
 
 	return true;
 }
+
+bool Renderer::RenderVertices()
+{
+	uint32_t timeout = 30; // ms
+	VkSemaphore semaphore;
+	VkSemaphoreCreateInfo semaphoreCreatInfo{};
+	semaphoreCreatInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	semaphoreCreatInfo.pNext = nullptr;
+	semaphoreCreatInfo.flags = 0;
+	auto err = vkCreateSemaphore(defaultDevice, &semaphoreCreatInfo, nullptr, &semaphore);
+	uint32_t imageIndex;
+
+	VkFenceCreateInfo fenceCreateInfo{};
+	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceCreateInfo.pNext = nullptr;
+	fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	VkFence fence{};
+	err = vkCreateFence(defaultDevice, &fenceCreateInfo, nullptr, &fence);
+
+	err = vkAcquireNextImageKHR(defaultDevice, swapchain, timeout, semaphore, nullptr, &imageIndex);
+
+	VkCommandBufferBeginInfo cmdBufferBeginInfo{};
+	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	cmdBufferBeginInfo.pNext = nullptr;
+	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+	cmdBufferBeginInfo.pInheritanceInfo = nullptr;
+
+	VkClearValue clearColour = { 1.0f, 0.8f, 0.4f, 0.0f };
+
+	VkImageSubresourceRange imageSubresourceRange{};
+	imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imageSubresourceRange.baseMipLevel = 0;
+	imageSubresourceRange.levelCount = 1;
+	imageSubresourceRange.baseArrayLayer = 0;
+	imageSubresourceRange.layerCount = 1;
+
+	/*
+	VkImageMemoryBarrier barrier{};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.pNext = nullptr;
+	barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier.srcQueueFamilyIndex = defaultQueueFamilyIndex;
+	barrier.dstQueueFamilyIndex = defaultQueueFamilyIndex;
+	barrier.image = swapchainImages[imageIndex];
+	barrier.subresourceRange = imageSubresourceRange;
+	
+	VkImageMemoryBarrier barrier2 = barrier;
+	barrier2.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+	barrier2.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	barrier2.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier2.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	
+	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	*/
+
+	VkRect2D renderArea{};
+	renderArea.offset.x = renderArea.offset.y = 0;
+	renderArea.extent.width = width;
+	renderArea.extent.height = height;
+
+	VkRenderPassBeginInfo renderPassBeginInfo{
+		VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+		nullptr,
+		renderPass,
+		frameBuffer,
+		renderArea,
+		1, &clearColour
+	};
+
+	//Begin 
+	vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+	VkViewport viewport;
+	viewport.x = viewport.y = 0;
+	viewport.width = width;
+	viewport.height = height;
+	viewport.minDepth = 0;
+	viewport.maxDepth = 1.0f;
+
+	VkRect2D scissors{};
+	scissors.offset.x = scissors.offset.y = 0;
+	scissors.extent.width = width;
+	scissors.extent.height = height;
+	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+	vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
+
+	VkDeviceSize offset;
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
+	vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+	vkCmdEndRenderPass(commandBuffer);
+
+	//End
+	//vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier2);
+
+	err = vkEndCommandBuffer(commandBuffer);
+
+	VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = nullptr;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &semaphore;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &semaphore; //TODO: we need different semaphores here
+	
+	err = vkQueueSubmit(primaryQueue, 1, &submitInfo, nullptr);
+	
+	VkPresentInfoKHR presentInfo{};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.pNext = nullptr;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &semaphore;
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = &swapchain;
+	presentInfo.pImageIndices = &imageIndex;
+	presentInfo.pResults = nullptr;
+	
+	err = vkQueuePresentKHR(primaryQueue, &presentInfo);
+
+	return true;
+}
+
 LRESULT CALLBACK Renderer::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
@@ -1074,22 +1369,53 @@ bool Renderer::Init(HINSTANCE hInstance)
 {
 	winAppInstance = hInstance;
 	//TODO Error checking
-	GetInstanceLayers();
-	GetInstanceExtensions();
-	CreateInstance();
+	if (!GetInstanceLayers())
+		return false;
+	if(!GetInstanceExtensions())
+		return false; 
+	if(!CreateInstance())
+		return false; 
 	InitDebug();
-	
-	CreateAppWindow();
-	EnumerateDevices();
-	CreateDevice();
+	if(!CreateAppWindow())
+		return false;
+	if(!EnumerateDevices())
+		return false;
+	if(!CreateDevice())
+		return false;
 
-	CreateSwapchain();
-	CreateCommandBuffers();
-	CreateImageView();
+	if(!CreateSwapchain())
+		return false; 
+	if(!CreateCommandBuffers())
+		return false;
+	if(!CreateImageView())
+		return false;
 
-	RenderClearScreen();
+	//RenderClearScreen();
 
+	if(!CreateRenderPass())
+		return false;
+	if(!CreateFrameBuffer())
+		return false;
+	if(!CreatePipeline())
+		return false;
+
+	if(!CreateTri())
+		return false;
+
+	RenderVertices();
 	return true;
 }
 
+void TestPath()
+{
+	//const int MAX_PATH = 256;
+	char path[MAX_PATH];
+	GetCurrentDirectoryA(MAX_PATH, path );
 
+	OutputDebugStringA(path);
+
+	FILE* temp = fopen("test", "w+");
+	fwrite(path, strlen(path) + 1, 1, temp);
+
+	fclose(temp);
+}

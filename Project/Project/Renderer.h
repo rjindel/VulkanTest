@@ -74,14 +74,17 @@ protected:
 	VkFramebuffer frameBuffer;
 	bool CreateFrameBuffer();
 
+	bool CreateShader(const char* filename, VkShaderModule& shaderModule);
 	VkPipeline pipeline;
 	bool CreatePipeline();
-	bool CreateShader();
 
+	bool AllocateMemory(VkBuffer& buffer, VkDeviceMemory& deviceMemory);
+	VkBuffer vertexBuffer;
 	bool CreateTri();
 
 	bool RenderClearScreen();
 	bool RenderWithRenderPass();
+	bool RenderVertices();
 
 public:
 	Renderer();
