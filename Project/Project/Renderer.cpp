@@ -1246,12 +1246,13 @@ bool Renderer::RenderWithRenderPass()
 bool Renderer::RenderVertices()
 {
 	uint32_t timeout = 30; // ms
-	VkSemaphore semaphore;
+	VkSemaphore imageAvailableSemaphore, renderingFinishedSemaphore;
 	VkSemaphoreCreateInfo semaphoreCreatInfo{};
 	semaphoreCreatInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 	semaphoreCreatInfo.pNext = nullptr;
 	semaphoreCreatInfo.flags = 0;
-	auto err = vkCreateSemaphore(defaultDevice, &semaphoreCreatInfo, nullptr, &semaphore);
+	auto err = vkCreateSemaphore(defaultDevice, &semaphoreCreatInfo, nullptr, &imageAvailableSemaphore);
+	vkCreateSemaphore(defaultDevice, &semaphoreCreatInfo, nullptr, &renderingFinishedSemaphore);
 	uint32_t imageIndex;
 
 	VkFenceCreateInfo fenceCreateInfo{};
@@ -1262,7 +1263,7 @@ bool Renderer::RenderVertices()
 	VkFence fence{};
 	err = vkCreateFence(defaultDevice, &fenceCreateInfo, nullptr, &fence);
 
-	err = vkAcquireNextImageKHR(defaultDevice, swapchain, timeout, semaphore, nullptr, &imageIndex);
+	err = vkAcquireNextImageKHR(defaultDevice, swapchain, timeout, imageAvailableSemaphore, nullptr, &imageIndex);
 
 	VkCommandBufferBeginInfo cmdBufferBeginInfo{};
 	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1286,7 +1287,7 @@ bool Renderer::RenderVertices()
 	imageSubresourceRange.baseArrayLayer = 0;
 	imageSubresourceRange.layerCount = 1;
 
-	/*
+	
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.pNext = nullptr;
@@ -1306,7 +1307,7 @@ bool Renderer::RenderVertices()
 	barrier2.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 	
 	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-	*/
+	
 
 	VkRect2D renderArea{};
 	renderArea.offset.x = renderArea.offset.y = 0;
@@ -1347,8 +1348,7 @@ bool Renderer::RenderVertices()
 	vkCmdEndRenderPass(commandBuffer);
 
 	//End
-	//vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier2);
-
+	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier2); 
 	err = vkEndCommandBuffer(commandBuffer);
 
 	VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -1356,12 +1356,12 @@ bool Renderer::RenderVertices()
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.pNext = nullptr;
 	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &semaphore;
+	submitInfo.pWaitSemaphores = &imageAvailableSemaphore;
 	submitInfo.pWaitDstStageMask = &waitStageMask;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
 	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &semaphore; //TODO: we need different semaphores here
+	submitInfo.pSignalSemaphores = &renderingFinishedSemaphore; //TODO: we need different semaphores here
 	
 	err = vkQueueSubmit(primaryQueue, 1, &submitInfo, nullptr);
 	
@@ -1369,7 +1369,7 @@ bool Renderer::RenderVertices()
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.pNext = nullptr;
 	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = &semaphore;
+	presentInfo.pWaitSemaphores = &renderingFinishedSemaphore;
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = &swapchain;
 	presentInfo.pImageIndices = &imageIndex;
