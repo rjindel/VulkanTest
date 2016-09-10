@@ -646,6 +646,12 @@ bool Renderer::RenderClearScreen()
 	
 	//Begin 
 	err = vkBeginCommandBuffer(commandBuffer, &cmdBufferBeginInfo);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Begin Command buffer", DebugLevel::Error);
+		return false;
+	}
+
 	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 	
 	vkCmdClearColorImage(commandBuffer, swapchainImages[imageIndex] , VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColour, 1, &imageSubresourceRange);
@@ -661,6 +667,7 @@ bool Renderer::RenderClearScreen()
 	submitInfo.pNext = nullptr;
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = &semaphore;
+	submitInfo.pWaitDstStageMask = &waitStageMask;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
 	submitInfo.signalSemaphoreCount = 1;
@@ -868,16 +875,16 @@ bool Renderer::CreatePipeline()
 	pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	pipelineVertexInputStateCreateInfo.pNext = nullptr;
 	pipelineVertexInputStateCreateInfo.flags = 0;
-	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
-	pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
-	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
-	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+	//pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+	//pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+	//pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
+	//pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
 
-	/*	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
-		pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
-		pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexBindingDescription;
-		pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = &vertexAttributeDescription;
-	*/
+	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
+	pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexBindingDescription;
+	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = &vertexAttributeDescription;
+	
 	VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo{};
 	pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	pipelineInputAssemblyStateCreateInfo.pNext = nullptr;
@@ -1142,6 +1149,13 @@ bool Renderer::RenderWithRenderPass()
 	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 	cmdBufferBeginInfo.pInheritanceInfo = nullptr;
 
+	err = vkBeginCommandBuffer(commandBuffer, &cmdBufferBeginInfo);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Begin Command buffer", DebugLevel::Error);
+		return false;
+	}
+
 	VkClearValue clearColour = { 1.0f, 0.8f, 0.4f, 0.0f };
 
 	VkImageSubresourceRange imageSubresourceRange{};
@@ -1206,6 +1220,7 @@ bool Renderer::RenderWithRenderPass()
 	submitInfo.pNext = nullptr;
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = &semaphore;
+	submitInfo.pWaitDstStageMask = &waitStageMask;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
 	submitInfo.signalSemaphoreCount = 1;
@@ -1255,6 +1270,13 @@ bool Renderer::RenderVertices()
 	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 	cmdBufferBeginInfo.pInheritanceInfo = nullptr;
 
+	err = vkBeginCommandBuffer(commandBuffer, &cmdBufferBeginInfo);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Begin Command buffer", DebugLevel::Error);
+		return false;
+	}
+	
 	VkClearValue clearColour = { 1.0f, 0.8f, 0.4f, 0.0f };
 
 	VkImageSubresourceRange imageSubresourceRange{};
@@ -1335,6 +1357,7 @@ bool Renderer::RenderVertices()
 	submitInfo.pNext = nullptr;
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = &semaphore;
+	submitInfo.pWaitDstStageMask = &waitStageMask;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
 	submitInfo.signalSemaphoreCount = 1;
@@ -1396,7 +1419,7 @@ bool Renderer::Init(HINSTANCE hInstance)
 	if(!CreateImageView())
 		return false;
 
-	RenderClearScreen();
+	//RenderClearScreen();
 
 	if(!CreateRenderPass())
 		return false;
