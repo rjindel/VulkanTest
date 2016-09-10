@@ -133,12 +133,14 @@ bool Renderer::CreateInstance()
 	//Create instance
 	VkApplicationInfo appInfo {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pNext = nullptr;
 	appInfo.pApplicationName = "Rkj Vulkan Sample app";
 	appInfo.pEngineName = "Rkj Vulkan Sample app";
 	appInfo.apiVersion = VK_MAKE_VERSION(1, 0, 8); // VK_API_VERSION; is deprecated
 
 	VkInstanceCreateInfo instanceCreateInfo {};
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	instanceCreateInfo.flags = 0;
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 	instanceCreateInfo.enabledLayerCount = layerNames.size() - 1;
 	instanceCreateInfo.ppEnabledLayerNames = layerNames.data();
@@ -157,7 +159,7 @@ bool Renderer::CreateInstance()
 	auto err = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
 	if (err != VK_SUCCESS)
 	{
-		Debug::Log("Create Vulkan instance failed");
+		Debug::Log("Create Vulkan instance failed", DebugLevel::Error);
 		return false;
 	}
 
@@ -461,7 +463,7 @@ bool Renderer::CreateImageView()
 	auto err = vkGetSwapchainImagesKHR(defaultDevice, swapchain, &swapchainImageCount, nullptr);
 	if (err != VK_SUCCESS)
 	{
-		Debug::Log("Get Swap chain image count");
+		Debug::Log("Get Swap chain image count", DebugLevel::Error);
 		return false;
 	}
 
@@ -469,7 +471,7 @@ bool Renderer::CreateImageView()
 	err = vkGetSwapchainImagesKHR(defaultDevice, swapchain, &swapchainImageCount, swapchainImages.data());
 	if (err != VK_SUCCESS)
 	{
-		Debug::Log("Get Swap chain images");
+		Debug::Log("Get Swap chain images", DebugLevel::Error);
 		return false;
 	}
 
@@ -742,7 +744,7 @@ bool Renderer::CreateRenderPass()
 	auto err = vkCreateRenderPass(defaultDevice, &renderPassCreateInfo, nullptr, &renderPass);
 	if (err != VK_SUCCESS)
 	{
-		Debug::Log("Create Render pass");
+		Debug::Log("Create Render pass", DebugLevel::Error);
 		return false;
 	}
 
@@ -765,7 +767,7 @@ bool Renderer::CreateFrameBuffer()
 	auto err = vkCreateFramebuffer(defaultDevice, &framebufferCreateInfo, nullptr, &frameBuffer);
 	if (err != VK_SUCCESS)
 	{
-		Debug::Log("Create Frame buffer");
+		Debug::Log("Create Frame buffer", DebugLevel::Error);
 		return false;
 	}
 
@@ -797,13 +799,13 @@ bool Renderer::CreateShader(const char* filename, VkShaderModule& shaderModule)
 	shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	shaderModuleCreateInfo.pNext = nullptr;
 	shaderModuleCreateInfo.flags = 0;
-	shaderModuleCreateInfo.codeSize = code.size();
+	shaderModuleCreateInfo.codeSize = code.size() * sizeof(uint32_t);
 	shaderModuleCreateInfo.pCode = code.data();
 
 	auto err = vkCreateShaderModule(defaultDevice, &shaderModuleCreateInfo, nullptr, &shaderModule);
 	if (err != VK_SUCCESS)
 	{
-		Debug::Log("Create shader module");
+		Debug::Log("Create shader module", DebugLevel::Error);
 		return false;
 	}
 
@@ -823,12 +825,12 @@ bool Renderer::CreateShader(const char* filename, VkShaderModule& shaderModule)
 
 bool Renderer::CreatePipeline()
 {
-//	const char* vertexShaderFilename = "FlatColour.vert.spv.txt";
-//	const char* fragmentShaderFilename = "FlatColour.frag.spv.txt";
-	
+	//	const char* vertexShaderFilename = "FlatColour.vert.spv.txt";
+	//	const char* fragmentShaderFilename = "FlatColour.frag.spv.txt";
+
 	const char* fragmentShaderFilename = "frag.spv";
 	VkShaderModule fragmentShaderModule = VK_NULL_HANDLE;
-	if(!CreateShader(fragmentShaderFilename, fragmentShaderModule))
+	if (!CreateShader(fragmentShaderFilename, fragmentShaderModule))
 		return false;
 
 	const char* vertexShaderFilename = "vert.spv";
@@ -862,7 +864,7 @@ bool Renderer::CreatePipeline()
 	vertexAttributeDescription.offset = 0;
 	vertexAttributeDescription.binding = 0;
 
-	VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo {};
+	VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo{};
 	pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	pipelineVertexInputStateCreateInfo.pNext = nullptr;
 	pipelineVertexInputStateCreateInfo.flags = 0;
@@ -871,11 +873,11 @@ bool Renderer::CreatePipeline()
 	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = nullptr;
 	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = nullptr;
 
-/*	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
-	pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
-	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexBindingDescription;
-	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = &vertexAttributeDescription;
-*/
+	/*	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
+		pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+		pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexBindingDescription;
+		pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = &vertexAttributeDescription;
+	*/
 	VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo{};
 	pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	pipelineInputAssemblyStateCreateInfo.pNext = nullptr;
@@ -895,22 +897,25 @@ bool Renderer::CreatePipeline()
 	scissors.extent.width = width;
 	scissors.extent.height = height;
 
-	VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo {};
+	VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo{};
 	pipelineViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	pipelineViewportStateCreateInfo.pNext = nullptr;
 	pipelineViewportStateCreateInfo.flags = 0;
-	/*
-	pipelineViewportStateCreateInfo.viewportCount = 0;
-	pipelineViewportStateCreateInfo.pViewports = nullptr;
-	pipelineViewportStateCreateInfo.scissorCount = 0;
-	pipelineViewportStateCreateInfo.pScissors = nullptr;
-	*/
 
-	pipelineViewportStateCreateInfo.viewportCount = 1;
-	pipelineViewportStateCreateInfo.pViewports = &viewport;
-	pipelineViewportStateCreateInfo.scissorCount = 1;
-	pipelineViewportStateCreateInfo.pScissors = &scissors;
-
+	if (enabledDynamicState)
+	{
+		pipelineViewportStateCreateInfo.viewportCount = 0;
+		pipelineViewportStateCreateInfo.pViewports = nullptr;
+		pipelineViewportStateCreateInfo.scissorCount = 0;
+		pipelineViewportStateCreateInfo.pScissors = nullptr;
+	}
+	else
+	{
+		pipelineViewportStateCreateInfo.viewportCount = 1;
+		pipelineViewportStateCreateInfo.pViewports = &viewport;
+		pipelineViewportStateCreateInfo.scissorCount = 1;
+		pipelineViewportStateCreateInfo.pScissors = &scissors;
+	}
 	VkDynamicState dynamicStates [] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 
 	VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo{};
@@ -921,7 +926,7 @@ bool Renderer::CreatePipeline()
 	pipelineDynamicStateCreateInfo.pDynamicStates = dynamicStates;
 
 	VkPipelineRasterizationStateCreateInfo pipelineRasterizationCreateInfo{};
-	pipelineRasterizationCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	pipelineRasterizationCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	pipelineRasterizationCreateInfo.pNext = nullptr;
 	pipelineRasterizationCreateInfo.flags = 0;
 	pipelineRasterizationCreateInfo.depthClampEnable = VK_FALSE;
@@ -1001,7 +1006,7 @@ bool Renderer::CreatePipeline()
 	graphicsCreatePipelineInfo.pMultisampleState = &pipelineMultisampleStateCreateInfo;
 	graphicsCreatePipelineInfo.pDepthStencilState = nullptr;
 	graphicsCreatePipelineInfo.pColorBlendState = &pipelineColourBlendStateCreateInfo;
-	graphicsCreatePipelineInfo.pDynamicState = nullptr; // &pipelineDynamicStateCreateInfo;
+	graphicsCreatePipelineInfo.pDynamicState = enabledDynamicState ? &pipelineDynamicStateCreateInfo : nullptr;
 	graphicsCreatePipelineInfo.layout = pipelineLayout;
 	graphicsCreatePipelineInfo.renderPass = renderPass;
 	graphicsCreatePipelineInfo.subpass = 0;
@@ -1075,22 +1080,22 @@ bool Renderer::CreateTri()
 	auto err = vkCreateBuffer(defaultDevice, &vbInfo, nullptr, &vertexBuffer);
 	if (err != VK_SUCCESS)
 	{
-		Debug::Log("Create Vertex buffer");
+		Debug::Log("Create Vertex buffer", DebugLevel::Error);
 		return false;
 	}
 
 	
 	VkDeviceMemory devMem;
-	if (AllocateMemory(vertexBuffer, devMem))
+	if (!AllocateMemory(vertexBuffer, devMem))
 	{
-		Debug::Log("Allocate memory for vertex buffer");
+		Debug::Log("Allocate memory for vertex buffer", DebugLevel::Error);
 		return false;
 	}
 
 	err = vkBindBufferMemory(defaultDevice, vertexBuffer, devMem, 0);
 	if(err != VK_SUCCESS)
 	{
-		Debug::Log("Allocate memory for vertex buffer");
+		Debug::Log("Allocate memory for vertex buffer", DebugLevel::Error);
 		return false;
 	}
 
@@ -1099,7 +1104,7 @@ bool Renderer::CreateTri()
 	err = vkMapMemory(defaultDevice, devMem, 0, VK_WHOLE_SIZE, 0, &memPtr);
 	if (err != VK_SUCCESS)
 	{
-		Debug::Log("Map vertex memory");
+		Debug::Log("Map vertex memory", DebugLevel::Error);
 		return false;
 	}
 
@@ -1391,7 +1396,7 @@ bool Renderer::Init(HINSTANCE hInstance)
 	if(!CreateImageView())
 		return false;
 
-	//RenderClearScreen();
+	RenderClearScreen();
 
 	if(!CreateRenderPass())
 		return false;

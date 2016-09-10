@@ -78,6 +78,9 @@ protected:
 	VkPipeline pipeline;
 	bool CreatePipeline();
 
+	bool enabledDynamicState{ false };
+
+
 	bool AllocateMemory(VkBuffer& buffer, VkDeviceMemory& deviceMemory);
 	VkBuffer vertexBuffer;
 	bool CreateTri();
