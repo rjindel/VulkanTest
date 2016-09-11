@@ -173,7 +173,7 @@ bool Renderer::CreateInstance()
 	return true;
 }
 
-bool Renderer::CreateSurface(VkPhysicalDevice& device)
+bool Renderer::CreateSurface()
 {
 	VkWin32SurfaceCreateInfoKHR surfaceInfo{};
 	surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
@@ -187,9 +187,15 @@ bool Renderer::CreateSurface(VkPhysicalDevice& device)
 		Debug::Log("Create Win32 surface", DebugLevel::Error);
 		return false;
 	}
+
+	return true;
+}
+
+bool Renderer::GetSurfaceFormat(VkPhysicalDevice& device)
+{
 	//Get surface format
 	uint32_t formatCount;
-	err = vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+	auto err = vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
 
 	if (err != VK_SUCCESS)
 	{
@@ -251,7 +257,7 @@ bool Renderer::EnumerateDevices()
 		vkGetPhysicalDeviceProperties(gpus[i], &properties);
 		Debug::Log(std::string("Device Name ") + properties.deviceName);
 
-		if (!CreateSurface(gpus[i]))
+		if (!GetSurfaceFormat(gpus[i]))
 		{
 			continue;
 		}
@@ -278,11 +284,6 @@ bool Renderer::EnumerateDevices()
 				break;
 			}
 		}
-
-		if (defaultPhysicalDevice == VK_NULL_HANDLE)
-		{
-			vkDestroySurfaceKHR(instance, surface, VK_NULL_HANDLE);
-		}
 	}
 
 	if (defaultPhysicalDevice == VK_NULL_HANDLE)
@@ -297,7 +298,7 @@ bool Renderer::EnumerateDevices()
 bool Renderer::CreateDevice()
 {
 	//Create device
-	float queue_priorities[1] = { 0.0f };
+	float queue_priorities[1] = { 1.0f };
 	VkDeviceQueueCreateInfo queue = {};
 	queue.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 	queue.queueFamilyIndex = defaultQueueFamilyIndex;
@@ -443,7 +444,7 @@ bool Renderer::CreateSwapchain()
 	swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 	swapchainCreateInfo.imageExtent		= surfaceCapabilities.currentExtent;
 	swapchainCreateInfo.imageArrayLayers = 1;
-	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;// | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	
 	swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	swapchainCreateInfo.queueFamilyIndexCount = 0;// defaultQueueFamilyIndex;
@@ -701,15 +702,18 @@ bool Renderer::CreateRenderPass()
 {
 	VkAttachmentDescription attachmentDescription{};
 	attachmentDescription.flags = 0;
-	attachmentDescription.format;		//Get SwapChain Format
+	attachmentDescription.format = currentFormat;		//Get SwapChain Format
 	attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 	attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_UNDEFINED; // VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	
+	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; 
+
+	//attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	//attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
+
 	VkAttachmentReference colourAttachmentReference{};
 	colourAttachmentReference.attachment = 0;
 	colourAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -752,6 +756,10 @@ bool Renderer::CreateRenderPass()
 	renderPassCreateInfo.pAttachments = &attachmentDescription;
 	renderPassCreateInfo.subpassCount = 1;
 	renderPassCreateInfo.pSubpasses = &subpassDescription;
+
+	//renderPassCreateInfo.dependencyCount = 0;
+	//renderPassCreateInfo.pDependencies = nullptr;
+
 	renderPassCreateInfo.dependencyCount = 2;
 	renderPassCreateInfo.pDependencies = dependencies;
 
@@ -947,7 +955,7 @@ bool Renderer::CreatePipeline()
 	pipelineRasterizationCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 	pipelineRasterizationCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 	pipelineRasterizationCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-	pipelineRasterizationCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	pipelineRasterizationCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	pipelineRasterizationCreateInfo.depthBiasEnable = VK_FALSE;
 	pipelineRasterizationCreateInfo.depthBiasConstantFactor = 0.0f;
 	pipelineRasterizationCreateInfo.depthBiasClamp = 0.0f;
@@ -1085,19 +1093,12 @@ bool Renderer::CreateTri()
 	vbInfo.queueFamilyIndexCount = 0;
 	vbInfo.pQueueFamilyIndices = nullptr; // &defaultQueueFamilyIndex;
 
-	VkMemoryAllocateInfo vbAllocInfo = {};
-	vbAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	vbAllocInfo.pNext = nullptr;
-	vbAllocInfo.allocationSize = 0;
-	vbAllocInfo.memoryTypeIndex = 0;
-
 	auto err = vkCreateBuffer(defaultDevice, &vbInfo, nullptr, &vertexBuffer);
 	if (err != VK_SUCCESS)
 	{
 		Debug::Log("Create Vertex buffer", DebugLevel::Error);
 		return false;
 	}
-
 	
 	VkDeviceMemory devMem;
 	if (!AllocateMemory(vertexBuffer, devMem))
@@ -1150,6 +1151,22 @@ bool Renderer::RenderWithRenderPass()
 	uint32_t imageIndex;
 	
 	err = vkAcquireNextImageKHR(defaultDevice, swapchain, timeout, imageAvailableSemaphore, nullptr, &imageIndex);
+	if (err != VK_SUCCESS)
+	{
+		return false;
+	}
+
+	if (!CreateFrameBuffer(imageIndex))
+		return false;
+	
+	//VkFenceCreateInfo fenceCreateInfo{};
+	//fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	//fenceCreateInfo.pNext = nullptr;
+	//fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	//VkFence fence{};
+	//err = vkCreateFence(defaultDevice, &fenceCreateInfo, nullptr, &fence);
+
 
 	VkCommandBufferBeginInfo cmdBufferBeginInfo{};
 	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1166,6 +1183,7 @@ bool Renderer::RenderWithRenderPass()
 
 	VkClearValue clearColour = { 1.0f, 0.8f, 0.4f, 0.0f };
 
+	/*
 	VkImageSubresourceRange imageSubresourceRange{};
 	imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	imageSubresourceRange.baseMipLevel = 0;
@@ -1173,7 +1191,6 @@ bool Renderer::RenderWithRenderPass()
 	imageSubresourceRange.baseArrayLayer = 0;
 	imageSubresourceRange.layerCount = 1;
 
-	/*
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.pNext = nullptr;
@@ -1221,8 +1238,14 @@ bool Renderer::RenderWithRenderPass()
 	//vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier2);
 
 	err = vkEndCommandBuffer(commandBuffer);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("End command buffer", DebugLevel::Error);
+		return false;
+	}
 
-	VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	//VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.pNext = nullptr;
@@ -1235,7 +1258,12 @@ bool Renderer::RenderWithRenderPass()
 	submitInfo.pSignalSemaphores = &renderingFinishedSemaphore;
 	
 	err = vkQueueSubmit(primaryQueue, 1, &submitInfo, nullptr);
-	
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Submit queue", DebugLevel::Error);
+		return false;
+	}
+
 	VkPresentInfoKHR presentInfo{};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.pNext = nullptr;
@@ -1247,6 +1275,11 @@ bool Renderer::RenderWithRenderPass()
 	presentInfo.pResults = nullptr;
 	
 	err = vkQueuePresentKHR(primaryQueue, &presentInfo);
+	if (err != VK_SUCCESS)
+	{
+		Debug::Log("Present Queue", DebugLevel::Error);
+		return false;
+	}
 
 	return true;
 }
@@ -1299,25 +1332,25 @@ bool Renderer::RenderVertices()
 	imageSubresourceRange.layerCount = 1;
 
 	
-	VkImageMemoryBarrier barrier{};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.pNext = nullptr;
-	barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-	barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	barrier.srcQueueFamilyIndex = defaultQueueFamilyIndex;
-	barrier.dstQueueFamilyIndex = defaultQueueFamilyIndex;
-	barrier.image = swapchainImages[imageIndex];
-	barrier.subresourceRange = imageSubresourceRange;
-	
-	VkImageMemoryBarrier barrier2 = barrier;
-	barrier2.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-	barrier2.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-	barrier2.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	barrier2.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	
-	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	//VkImageMemoryBarrier barrier{};
+	//barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	//barrier.pNext = nullptr;
+	//barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	//barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	//barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	//barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	//barrier.srcQueueFamilyIndex = defaultQueueFamilyIndex;
+	//barrier.dstQueueFamilyIndex = defaultQueueFamilyIndex;
+	//barrier.image = swapchainImages[imageIndex];
+	//barrier.subresourceRange = imageSubresourceRange;
+	//
+	//VkImageMemoryBarrier barrier2 = barrier;
+	//barrier2.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+	//barrier2.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	//barrier2.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	//barrier2.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	//
+	//vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT , VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 	
 
 	VkRect2D renderArea{};
@@ -1362,7 +1395,7 @@ bool Renderer::RenderVertices()
 	vkCmdEndRenderPass(commandBuffer);
 
 	//End
-	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier2); 
+	//vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier2); 
 	err = vkEndCommandBuffer(commandBuffer);
 
 	VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -1421,6 +1454,9 @@ bool Renderer::Init(HINSTANCE hInstance)
 	InitDebug();
 	if(!CreateAppWindow())
 		return false;
+	if (!CreateSurface())
+		return false;
+
 	if(!EnumerateDevices())
 		return false;
 	if(!CreateDevice())
@@ -1437,16 +1473,15 @@ bool Renderer::Init(HINSTANCE hInstance)
 
 	if(!CreateRenderPass())
 		return false;
-
-	RenderWithRenderPass();
-
+	
 	if(!CreatePipeline())
 		return false;
 
 	if(!CreateTri())
 		return false;
 
-	RenderVertices();
+	RenderWithRenderPass();
+	//RenderVertices();
 	return true;
 }
 

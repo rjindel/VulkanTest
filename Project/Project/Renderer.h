@@ -50,8 +50,9 @@ protected:
 	bool CreateAppWindow();
 
 	VkSurfaceKHR		surface { VK_NULL_HANDLE };
+	bool CreateSurface();
 	VkFormat			currentFormat;
-	bool CreateSurface(VkPhysicalDevice& device);
+	bool GetSurfaceFormat(VkPhysicalDevice& device);
 
 	uint32_t			defaultPresentIdx;	//RENAME
 	VkSwapchainKHR		swapchain{ VK_NULL_HANDLE };
@@ -78,7 +79,7 @@ protected:
 	VkPipeline pipeline;
 	bool CreatePipeline();
 
-	bool enabledDynamicState{ false };
+	bool enabledDynamicState{ true };
 
 
 	bool AllocateMemory(VkBuffer& buffer, VkDeviceMemory& deviceMemory);
