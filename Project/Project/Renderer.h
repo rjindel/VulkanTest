@@ -72,7 +72,7 @@ protected:
 	bool CreateRenderPass();
 
 	VkFramebuffer frameBuffer;
-	bool CreateFrameBuffer();
+	bool CreateFrameBuffer(uint32_t imageIndex);
 
 	bool CreateShader(const char* filename, VkShaderModule& shaderModule);
 	VkPipeline pipeline;

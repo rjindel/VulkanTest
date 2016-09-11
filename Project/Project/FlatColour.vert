@@ -2,10 +2,10 @@
 
 layout (location = 0) in vec4 i_Position;
 
-layout (binding = 1) uniform UBO
-{
-	vec4 u_Colour;
-} ubo;
+//layout (binding = 1) uniform UBO
+//{
+//	vec4 u_Colour;
+//} ubo;
 
 out gl_PerVertex
 {
@@ -17,5 +17,5 @@ layout(location = 0) out vec4 v_Color;
 void main()
 {
 	gl_Position = i_Position;
-	v_Color = ubo.u_Colour;
+	v_Color = vec4(1.0f, 1.0f, 0, 1.0f); //ubo.u_Colour;
 }

@@ -142,7 +142,14 @@ bool Renderer::CreateInstance()
 	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	instanceCreateInfo.flags = 0;
 	instanceCreateInfo.pApplicationInfo = &appInfo;
-	instanceCreateInfo.enabledLayerCount = layerNames.size() - 1;
+
+	//HACK: required to work correctly on Laptop
+	//TODO: Fix
+	uint32_t numLayers = layerNames.size() - 1;
+	if(layerNames.size() > 6)
+		numLayers = layerNames.size() - 5;
+
+	instanceCreateInfo.enabledLayerCount = numLayers;
 	instanceCreateInfo.ppEnabledLayerNames = layerNames.data();
 	instanceCreateInfo.enabledExtensionCount = globalExtensionNames.size();
 	instanceCreateInfo.ppEnabledExtensionNames = globalExtensionNames.data();
@@ -395,8 +402,8 @@ bool Renderer::CreateSwapchain()
 	width = surfaceCapabilities.currentExtent.width;
 	height = surfaceCapabilities.currentExtent.height;
 
-	VkPresentModeKHR presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-	/*
+	VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
+	
 	uint32_t presentModeCount;
 	err = vkGetPhysicalDeviceSurfacePresentModesKHR(defaultPhysicalDevice, surface, &presentModeCount, nullptr);
 	if (err != VK_SUCCESS)
@@ -412,7 +419,7 @@ bool Renderer::CreateSwapchain()
 		Debug::Log("Get Surface present mode", DebugLevel::Error);
 		return false;
 	}
-	*/
+	
 
 	uint32_t swapchainImageCount = 2;
 	if (surfaceCapabilities.minImageCount > swapchainImageCount)
@@ -700,8 +707,8 @@ bool Renderer::CreateRenderPass()
 	attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_UNDEFINED; // VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 	
 	VkAttachmentReference colourAttachmentReference{};
 	colourAttachmentReference.attachment = 0;
@@ -758,15 +765,15 @@ bool Renderer::CreateRenderPass()
 	return true;
 }
 
-bool Renderer::CreateFrameBuffer()
+bool Renderer::CreateFrameBuffer(uint32_t imageIndex)
 {
 	VkFramebufferCreateInfo framebufferCreateInfo{};
 	framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 	framebufferCreateInfo.pNext = nullptr;
 	framebufferCreateInfo.flags = 0;
 	framebufferCreateInfo.renderPass = renderPass;
-	framebufferCreateInfo.attachmentCount = imageViews.size();
-	framebufferCreateInfo.pAttachments = imageViews.data();
+	framebufferCreateInfo.attachmentCount = 1;// imageViews.size();
+	framebufferCreateInfo.pAttachments = &imageViews[imageIndex]; //.data();
 	framebufferCreateInfo.width = width;
 	framebufferCreateInfo.height = height;
 	framebufferCreateInfo.layers = 1;
@@ -911,9 +918,9 @@ bool Renderer::CreatePipeline()
 
 	if (enabledDynamicState)
 	{
-		pipelineViewportStateCreateInfo.viewportCount = 0;
+		pipelineViewportStateCreateInfo.viewportCount = 1;
 		pipelineViewportStateCreateInfo.pViewports = nullptr;
-		pipelineViewportStateCreateInfo.scissorCount = 0;
+		pipelineViewportStateCreateInfo.scissorCount = 1;
 		pipelineViewportStateCreateInfo.pScissors = nullptr;
 	}
 	else
@@ -1133,15 +1140,16 @@ bool Renderer::CreateTri()
 bool Renderer::RenderWithRenderPass()
 {
 	uint32_t timeout = 30; // ms
-	VkSemaphore semaphore;
+	VkSemaphore imageAvailableSemaphore, renderingFinishedSemaphore;
 	VkSemaphoreCreateInfo semaphoreCreatInfo{};
 	semaphoreCreatInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 	semaphoreCreatInfo.pNext = nullptr;
 	semaphoreCreatInfo.flags = 0;
-	auto err = vkCreateSemaphore(defaultDevice, &semaphoreCreatInfo, nullptr, &semaphore);
+	auto err = vkCreateSemaphore(defaultDevice, &semaphoreCreatInfo, nullptr, &imageAvailableSemaphore);
+	vkCreateSemaphore(defaultDevice, &semaphoreCreatInfo, nullptr, &renderingFinishedSemaphore);
 	uint32_t imageIndex;
 	
-	err = vkAcquireNextImageKHR(defaultDevice, swapchain, timeout, semaphore, nullptr, &imageIndex);
+	err = vkAcquireNextImageKHR(defaultDevice, swapchain, timeout, imageAvailableSemaphore, nullptr, &imageIndex);
 
 	VkCommandBufferBeginInfo cmdBufferBeginInfo{};
 	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1219,12 +1227,12 @@ bool Renderer::RenderWithRenderPass()
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.pNext = nullptr;
 	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &semaphore;
+	submitInfo.pWaitSemaphores = &imageAvailableSemaphore;
 	submitInfo.pWaitDstStageMask = &waitStageMask;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffer;
 	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &semaphore; //TODO: we need different semaphores here
+	submitInfo.pSignalSemaphores = &renderingFinishedSemaphore;
 	
 	err = vkQueueSubmit(primaryQueue, 1, &submitInfo, nullptr);
 	
@@ -1232,7 +1240,7 @@ bool Renderer::RenderWithRenderPass()
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.pNext = nullptr;
 	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = &semaphore;
+	presentInfo.pWaitSemaphores = &renderingFinishedSemaphore;
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = &swapchain;
 	presentInfo.pImageIndices = &imageIndex;
@@ -1264,6 +1272,9 @@ bool Renderer::RenderVertices()
 	err = vkCreateFence(defaultDevice, &fenceCreateInfo, nullptr, &fence);
 
 	err = vkAcquireNextImageKHR(defaultDevice, swapchain, timeout, imageAvailableSemaphore, nullptr, &imageIndex);
+
+	if (!CreateFrameBuffer(imageIndex))
+		return false;
 
 	VkCommandBufferBeginInfo cmdBufferBeginInfo{};
 	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1338,8 +1349,11 @@ bool Renderer::RenderVertices()
 	scissors.offset.x = scissors.offset.y = 0;
 	scissors.extent.width = width;
 	scissors.extent.height = height;
-	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-	vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
+	if (enabledDynamicState)
+	{
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
+	}
 
 	VkDeviceSize offset;
 	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
@@ -1423,8 +1437,9 @@ bool Renderer::Init(HINSTANCE hInstance)
 
 	if(!CreateRenderPass())
 		return false;
-	if(!CreateFrameBuffer())
-		return false;
+
+	RenderWithRenderPass();
+
 	if(!CreatePipeline())
 		return false;
 
